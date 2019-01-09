@@ -3,14 +3,13 @@ set more off
 set maxvar 32000
 
 * Full data w/ race 
-cd "~/Desktop/Combined Data"
-insheet using "done_combined_full_listings.csv", clear
+global repository `c(pwd)' 
+insheet using "$repository/data/done_combined_full_listings.csv", clear
 sort id
 
-do clean
+do "$repository/code/clean.do"
 
 ** Clean-up that's combined data-specific
-
 
 ** Creating cities
 replace state = "CA" if state == "Ca" | state == "ca" | state == "Ca "
@@ -27,7 +26,6 @@ label values cleaned_city _city // label them city names
 ** Restricting data set
 destring host_listings_count, replace force
 drop if host_listings_count > 20
-
 
 drop if host_has_profile_pic == "f"
 drop if price > 800
@@ -76,7 +74,6 @@ la var sex_res "Sex"
 drop if sex_res > 2
 drop if race_res > 4
 
-
 ** Create interaction for race and sex
 egen race_sex_res = group(race_res sex_res), label
 
@@ -109,100 +106,34 @@ egen first_review_year = rowmax(first_review_year1 first_review_year_chi)
 replace first_review_month = 99 if first_review_month == . //create fake month for people w/ no reviews
 replace first_review_year = 99 if first_review_year == .  //create fake year for people w/ no reviews to boost observations
 
-// cd "~/Desktop/Combined Data/Robustness"
-// do robustness_property_chars
 
-//do regressions
+** Creating last scraped times
+// month is first
+split last_scraped, p("/") //splits variable by /
+rename last_scraped1 last_scraped_month
+rename last_scraped2 last_scraped_day
+rename last_scraped3 last_scraped_year
 
+destring last_scraped_year, replace force
+replace last_scraped_year = 15 if last_scraped_year == 2015
 
-/*
-tabout race_sex_res cleaned_city using SummaryTable2.tex, c(freq col row) ///
-replace //**these are the rows
-cells(count race) sum ///
-style(tex) topf(top.tex) botf(bot.tex)
-
-
-
-
-
-
-
-/*
-
-******* Tables *****************************************************************
-** Create City-Level Summary Statistics Table, want counts
+** Creating time on market and reviews per years active metric
+gen time_on_market = last_scraped_year - first_review_year if first_review_year
+gen reviews_per_year = number_of_reviews / time_on_market
 
 
 
-** Race Summary Statistics Table, want means & SD
-latabstat price, by(race)
-
-estpost tabstat price number_of_reviews review_scores_value bedrooms, by(race) ///
-statistics(mean n sd) columns(statistics) //listwise //column(stat) shows variables in rows 
-esttab using summary_table_race.tex, replace main(mean) aux(sd) unstack booktabs ///
-label nonote 
 
 
-******* Summary Stats **********************************************************
-set graphics off
-
-preserve
-** See how price distributed
-histogram price 
-replace price = 800 if price >800
-histogram price if price <= 800  
-sort host_id
-by host_id:  gen dup_host = cond(_N==1,0,_n)
-histogram price if price < 800 & dup_host>1
-restore
-
-preserve
-replace host_listings_count = 20 if host_listings_count > 20
-histogram host_listings_count if host_listings_count < 10
-tab host_listings_count
-restore
-
-tabout sex using sex_table.tex, replace // Want: Table of # of observartions in each category of variable, and their percentage of total
-tabout race using race_table.tex, replace
-tabout age using age_table.tex, replace
-
-preserve
-sum price if race==1
-sum price if race==2
-twoway histogram price if price <800, by(race)
-restore
-
-preserve
-twoway histogram price if price<800, by(sex)
-mean(price) if sex<2
-restore
 
 
-/*
-GARBAGE:
 
-** Give up and make this in R - table w/ city-level description
-la var id "Listings"
-estpost tabstat race sex age id, by(cleaned_city) ///
-statistics(mean) columns(statistics) //listwise //column(stat) shows variables in rows 
-esttab using summary_table_city.tex, replace main(mean n) unstack booktabs ///
-label nonote 
 
-** Failed tabout code - race only as a row variables
-tabout price race using SummaryTable2.tex, ///
-replace /// **these are the rows
-cells(mean race) sum ///
-style(tex) topf(top.tex) botf(bot.tex)
 
-// cl2(2-4 5-6) cltr2(.75em 1.5em)
-// sum /// **using summary mode of tabout
-//f(0c 1) /// **the first number is the format of the first horizontal variable
 
-//clab(Table 1: My first table) ///
-** cells(mean price se) --if you want SE, can only use mean
 
-sort host_id
-by host_id:  gen dup = cond(_N==1,0,_n)
-drop if dup>1 //dup>0 deletes all duplicate entries, >1 keeps first instance
 
-replace price = substr(price, 1, length(price)-3) //deletes decimals from string
+
+
+
+
